@@ -68,6 +68,22 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
+function formatDateTime(date) {
+  if (!date) return "never";
+
+  const d = new Date(date);
+
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  const seconds = String(d.getSeconds()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 function timeToMs(time) {
   if (time == null) return Number.POSITIVE_INFINITY;
   if (typeof time === "number") return time;
@@ -297,7 +313,7 @@ function buildRowFromEntry(onlineIdFallback, playerId, entry) {
 // ---- HTML
 function renderHtml() {
   console.log("Rendering HTML");
-  const updated = lastUpdated ? lastUpdated.toISOString() : "never";
+  const updated = formatDateTime(lastUpdated);
   const err = lastError
     ? `<p style="color:#b00020; text-align:center; font-weight:700;">Last error: ${escapeHtml(lastError)}</p>`
     : "";
