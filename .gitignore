@@ -1,0 +1,45 @@
+# Node.js general
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE and other editor files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Logs
+logs/
+*.log
+*.out
+*.pid
+*.seed
+
+# Coverage and build artifacts
+coverage/
+dist/
+build/
+
+# Temporary
+tmp/
+temp/
+*.swp
+
+# MongoDB dump
+dump/
+
+# Optional: Docker
+docker-compose.override.yml
+.env.local
+.env.development.local
