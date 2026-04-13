@@ -182,6 +182,34 @@ function setNoCacheHeaders(res) {
   res.setHeader("Surrogate-Control", "no-store");
 }
 
+function cloneRows(rows) {
+  return (rows ?? []).map((row) => ({ ...row }));
+}
+
+function buildPreviousRowsMap(rows) {
+  const map = new Map();
+
+  for (const row of rows ?? []) {
+    const onlineIdKey = String(row?.onlineId ?? "")
+      .trim()
+      .toLowerCase();
+
+    if (onlineIdKey) {
+      map.set(onlineIdKey, row);
+    }
+  }
+
+  return map;
+}
+
+function getFallbackRow(previousRowsMap, psid) {
+  const key = String(psid ?? "")
+    .trim()
+    .toLowerCase();
+
+  return previousRowsMap.get(key) ?? null;
+}
+
 // ---- API calls
 async function searchPlayer(psid) {
   console.log(`Searching player: ${psid}`);
@@ -472,19 +500,77 @@ async function updateCache() {
 
   isRefreshing = true;
 
+  const previousRowsSnapshot = cloneRows(cachedRows);
+  const previousRowsMap = buildPreviousRowsMap(previousRowsSnapshot);
+
   try {
     lastError = null;
     const psids = readPsids();
     const rows = [];
 
     for (const psid of psids) {
+      const fallbackRow = getFallbackRow(previousRowsMap, psid);
+
       try {
         const sp = await searchPlayer(psid);
 
         if (!sp.playerId) {
+          if (fallbackRow) {
+            rows.push({
+              ...fallbackRow,
+              status:
+                fallbackRow.status === "ok" ? "ok (cache)" : fallbackRow.status,
+            });
+          } else {
+            rows.push({
+              onlineId: sp.onlineId ?? psid,
+              nickname: sp.nickname,
+              playerId: null,
+              position: null,
+              countryCode: null,
+              DR: null,
+              SR: null,
+              time: null,
+              timeMS: Number.POSITIVE_INFINITY,
+              carBrand: null,
+              carName: null,
+              timestamp: null,
+              status: "Nem vett részt az eseményen még",
+            });
+          }
+
+          continue;
+        }
+
+        const page = await retrievePlayerPage(sp.playerId);
+        const entry = findPlayerEntry(page, sp.playerId);
+        const row = buildRowFromEntry(sp.onlineId, sp.playerId, entry);
+
+        const shouldUseFallback =
+          fallbackRow &&
+          fallbackRow.time != null &&
+          (row.time == null || row.timeMS === Number.POSITIVE_INFINITY);
+
+        if (shouldUseFallback) {
           rows.push({
-            onlineId: sp.onlineId,
-            nickname: sp.nickname,
+            ...fallbackRow,
+            status: "ok (cache)",
+          });
+        } else {
+          rows.push(row);
+        }
+
+        await delay(250);
+      } catch (e) {
+        if (fallbackRow) {
+          rows.push({
+            ...fallbackRow,
+            status: "ok (cache after error)",
+          });
+        } else {
+          rows.push({
+            onlineId: psid,
+            nickname: null,
             playerId: null,
             position: null,
             countryCode: null,
@@ -495,33 +581,9 @@ async function updateCache() {
             carBrand: null,
             carName: null,
             timestamp: null,
-            status: "Nem vett részt az eseményen még",
+            status: `error: ${e?.message ?? String(e)}`,
           });
-          continue;
         }
-
-        const page = await retrievePlayerPage(sp.playerId);
-        const entry = findPlayerEntry(page, sp.playerId);
-        const row = buildRowFromEntry(sp.onlineId, sp.playerId, entry);
-        rows.push(row);
-
-        await delay(250);
-      } catch (e) {
-        rows.push({
-          onlineId: psid,
-          nickname: null,
-          playerId: null,
-          position: null,
-          countryCode: null,
-          DR: null,
-          SR: null,
-          time: null,
-          timeMS: Number.POSITIVE_INFINITY,
-          carBrand: null,
-          carName: null,
-          timestamp: null,
-          status: `error: ${e?.message ?? String(e)}`,
-        });
       }
     }
 
